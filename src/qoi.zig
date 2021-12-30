@@ -54,7 +54,7 @@ fn hash(col: Color) u6 {
     const g = col[1];
     const b = col[2];
     const a = col[3];
-    return @truncate(u6, r *% 3 +% g *% 5 +% b *% 7 +% a *% 11);
+    return @truncate(u6, (r *% 3) +% (g *% 5) +% (b *% 7) +% (a *% 11));
 }
 
 pub fn decode(input: InputBuf, output: []u32) error{ Invalid, OutputTooSmall }!void {
@@ -97,9 +97,9 @@ pub fn decode(input: InputBuf, output: []u32) error{ Invalid, OutputTooSmall }!v
             },
             0b01 => {
                 // QOI_OP_DIFF
-                col[0] +%= @bitCast(u8, @as(i8, @bitCast(i2, @truncate(u2, byte >> 4))));
-                col[1] +%= @bitCast(u8, @as(i8, @bitCast(i2, @truncate(u2, byte >> 2))));
-                col[2] +%= @bitCast(u8, @as(i8, @bitCast(i2, @truncate(u2, byte >> 0))));
+                col[0] +%= @as(u8, @truncate(u2, byte >> 4)) -% 2;
+                col[1] +%= @as(u8, @truncate(u2, byte >> 2)) -% 2;
+                col[2] +%= @as(u8, @truncate(u2, byte >> 0)) -% 2;
                 prev_pixels[hash(col)] = col;
                 ptr += 1;
                 output[out] = @bitCast(u32, col);
@@ -108,20 +108,20 @@ pub fn decode(input: InputBuf, output: []u32) error{ Invalid, OutputTooSmall }!v
             0b10 => {
                 // QOI_OP_LUMA
                 const more_deltas = ptr[1];
-                const dg = @as(i8, @bitCast(i6, @truncate(u6, byte)));
-                const dr = dg + @bitCast(i4, @truncate(u4, more_deltas >> 4));
-                const db = dg + @bitCast(i4, @truncate(u4, more_deltas >> 0));
-                prev_pixels[hash(col)] = col;
+                const dg = @as(u8, @truncate(u6, byte)) -% 32;
+                const dr = dg +% @truncate(u4, more_deltas >> 4) -% 8;
+                const db = dg +% @truncate(u4, more_deltas >> 0) -% 8;
                 col[0] +%= @bitCast(u8, dr);
                 col[1] +%= @bitCast(u8, dg);
                 col[2] +%= @bitCast(u8, db);
+                prev_pixels[hash(col)] = col;
                 ptr += 2;
                 output[out] = @bitCast(u32, col);
                 out += 1;
             },
             0b11 => {
                 // QOI_OP_RUN
-                const repetitions: u8 = @as(u8, @truncate(u6, byte)) + 1;
+                const repetitions = @as(u8, @truncate(u6, byte)) + 1;
                 if (out + repetitions > output.len)
                     return error.Invalid;
                 ptr += 1;
