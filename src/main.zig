@@ -4,6 +4,7 @@ const mul = std.math.mul;
 const Allocator = std.mem.Allocator;
 
 const qoi = @import("qoi.zig");
+const zstd = @import("zstd.zig");
 
 fn encodeDigits(
     number: u32,
@@ -57,6 +58,21 @@ fn decodeQoi(
     return res_bytes;
 }
 
+fn decodeZstd(
+    alloc: Allocator,
+    input: []const u8,
+) ![]u8 {
+    var scratch = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = scratch.deinit();
+
+    const reader = std.io.fixedBufferStream(input).reader();
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+
+    try zstd.decode(reader, &out, scratch.allocator());
+    return out.toOwnedSlice();
+}
+
 const in_file_max_size = 1024 * 1024 * 1024; // 1 GiB
 
 fn decode(
@@ -83,6 +99,7 @@ fn usage(exe_name: []const u8) noreturn {
         \\Usage: {s} [format] [infile] [outfile]
         \\Available formats:
         \\  qoi   Convert QOI to PPM
+        \\  zstd  Decode zstd files with no dictionary
         \\
     , .{exe_name}) catch {};
     std.process.exit(1);
@@ -103,6 +120,8 @@ pub fn main() !void {
 
     if (std.mem.eql(u8, format, "qoi")) {
         try decode(alloc, in_file, out_file, decodeQoi);
+    } else if (std.mem.eql(u8, format, "zstd")) {
+        try decode(alloc, in_file, out_file, decodeZstd);
     } else usage(exe_name);
 }
 
