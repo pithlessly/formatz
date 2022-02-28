@@ -63,6 +63,10 @@ pub const MethodReport = struct {
     fit_1byte: u32,
     fit_2byte: u32,
     fallback: u32,
+
+    pub fn summarizeSize(self: MethodReport) u32 {
+        return self.fit_1byte + self.fit_2byte * 2 + self.fallback * 5;
+    }
 };
 
 pub const Report = struct {

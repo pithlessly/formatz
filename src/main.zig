@@ -106,11 +106,12 @@ fn deltaStat(alloc: Allocator, in_file: []const u8) !void {
     inline for (std.meta.fields(@TypeOf(report))) |field|
         if (field.field_type == dstat.MethodReport) {
             const mr = @field(report, field.name);
-            try stdout.print("{s:>20}\t{}\t{}\t{}\n", .{
+            try stdout.print("{s:>20}\t{}\t{}\t{}\t{}\n", .{
                 field.name,
                 mr.fit_1byte,
                 mr.fit_2byte,
                 mr.fallback,
+                mr.summarizeSize(),
             });
         };
 }
