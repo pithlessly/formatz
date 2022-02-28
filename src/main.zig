@@ -5,6 +5,20 @@ const Allocator = std.mem.Allocator;
 
 const qoi = @import("qoi.zig");
 const zstd = @import("zstd.zig");
+const dstat = @import("dstat.zig");
+
+const input_file_max_size = 1024 * 1024 * 1024; // 1 GiB
+
+fn readFile(alloc: Allocator, path: []const u8) ![]align(4) u8 {
+    return std.fs.cwd().readFileAllocOptions(
+        alloc,
+        path,
+        input_file_max_size,
+        null,
+        4,
+        null,
+    );
+}
 
 fn encodeDigits(
     number: u32,
@@ -20,6 +34,7 @@ fn encodeDigits(
     }
 }
 
+// remove every fourth byte from `px_data`
 fn removeAlpha(px_data: []u8) void {
     std.debug.assert(px_data.len % 4 == 0);
     var p1 = px_data.ptr;
@@ -73,24 +88,31 @@ fn decodeZstd(
     return out.toOwnedSlice();
 }
 
-const in_file_max_size = 1024 * 1024 * 1024; // 1 GiB
-
 fn decode(
     alloc: Allocator,
     in_file: []const u8,
     out_file: []const u8,
     comptime decodeFn: anytype,
 ) !void {
-    const in_data = try std.fs.cwd().readFileAllocOptions(
-        alloc,
-        in_file,
-        in_file_max_size,
-        null,
-        4,
-        null,
-    );
+    const in_data = try readFile(alloc, in_file);
     const out_data = try decodeFn(alloc, in_data);
     try std.fs.cwd().writeFile(out_file, out_data);
+}
+
+fn deltaStat(alloc: Allocator, in_file: []const u8) !void {
+    const in_data = try readFile(alloc, in_file);
+    const report = try dstat.report(alloc, in_data);
+    const stdout = std.io.getStdOut().writer();
+    inline for (std.meta.fields(@TypeOf(report))) |field|
+        if (field.field_type == dstat.MethodReport) {
+            const mr = @field(report, field.name);
+            try stdout.print("{s:>20}\t{}\t{}\t{}\n", .{
+                field.name,
+                mr.fit_1byte,
+                mr.fit_2byte,
+                mr.fallback,
+            });
+        };
 }
 
 fn usage(exe_name: []const u8) noreturn {
@@ -98,8 +120,10 @@ fn usage(exe_name: []const u8) noreturn {
     stderr.print(
         \\Usage: {s} [format] [infile] [outfile]
         \\Available formats:
-        \\  qoi   Convert QOI to PPM
-        \\  zstd  Decode zstd files with no dictionary
+        \\  qoi    Convert QOI to PPM
+        \\  zstd   Decode zstd files with no dictionary
+        \\Additional commands:
+        \\  Δstat  Report information about differences in pixels in a PPM file
         \\
     , .{exe_name}) catch {};
     std.process.exit(1);
@@ -116,13 +140,18 @@ pub fn main() !void {
     const exe_name = try args.next(alloc) orelse usage("formatz");
     const format = try args.next(alloc) orelse usage(exe_name);
     const in_file = try args.next(alloc) orelse usage(exe_name);
-    const out_file = try args.next(alloc) orelse usage(exe_name);
 
-    if (std.mem.eql(u8, format, "qoi")) {
-        try decode(alloc, in_file, out_file, decodeQoi);
-    } else if (std.mem.eql(u8, format, "zstd")) {
-        try decode(alloc, in_file, out_file, decodeZstd);
-    } else usage(exe_name);
+    if (std.mem.eql(u8, format, "Δstat")) {
+        try deltaStat(alloc, in_file);
+    } else {
+        const out_file = try args.next(alloc) orelse usage(exe_name);
+
+        if (std.mem.eql(u8, format, "qoi")) {
+            try decode(alloc, in_file, out_file, decodeQoi);
+        } else if (std.mem.eql(u8, format, "zstd")) {
+            try decode(alloc, in_file, out_file, decodeZstd);
+        } else usage(exe_name);
+    }
 }
 
 test {
