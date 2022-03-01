@@ -82,7 +82,7 @@ const Fit = enum {
     fallback,
 
     const ONE_MASK = ~@as(u32, 0x00_03_03_03);
-    const TWO_MASK = ~@as(u32, 0x00_0f_1f_0f);
+    const TWO_MASK = ~@as(u32, 0x00_0f_3f_0f);
 };
 
 fn reportMethod(img: Image, comptime diffFn: fn ([4]u8, [4]u8) Fit) MethodReport {
@@ -105,7 +105,7 @@ fn perfectSubDiff(a: [4]u8, b: [4]u8) Fit {
     const db = a[2] -% b[2];
     if (dr +% 2 < 4 and dg +% 2 < 4 and db +% 2 < 4)
         return .one
-    else if (dr +% 8 < 16 and dg +% 16 < 32 and db +% 8 < 16)
+    else if (dr +% 8 < 16 and dg +% 32 < 64 and db +% 8 < 16)
         return .two
     else
         return .fallback;
@@ -115,7 +115,7 @@ fn imperfectSubDiff(a: [4]u8, b: [4]u8) Fit {
     const delta = @bitCast(u32, a) -% @bitCast(u32, b);
     if ((delta +% 0x00_02_02_02) & Fit.ONE_MASK == 0)
         return .one
-    else if ((delta +% 0x00_08_10_08) & Fit.TWO_MASK == 0)
+    else if ((delta +% 0x00_08_20_08) & Fit.TWO_MASK == 0)
         return .two
     else
         return .fallback;
@@ -127,7 +127,7 @@ fn xorDiff(a: [4]u8, b: [4]u8) Fit {
     const db = a[2] ^ b[2];
     if (dr < 4 and dg < 4 and db < 4)
         return .one
-    else if (dr < 16 and dg < 32 and db < 16)
+    else if (dr < 16 and dg < 64 and db < 16)
         return .two
     else
         return .fallback;
